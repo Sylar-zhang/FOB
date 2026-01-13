@@ -1,1 +1,168 @@
-text
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>海外FOB/毛利率计算器</title>
+
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0a0c12">
+
+<style>
+*{box-sizing:border-box}
+body{
+  margin:0;height:100dvh;
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  background:radial-gradient(900px 450px at 50% -200px,
+    rgba(56,189,248,.18),rgba(0,0,0,.95) 60%);
+  color:#e5e7eb;display:flex;justify-content:center
+}
+.box{
+  width:100%;max-width:520px;height:100dvh;
+  padding:14px;display:flex;flex-direction:column;
+  border-radius:18px;
+  background:linear-gradient(180deg,#121620,#0a0c12);
+  box-shadow:0 0 0 1px rgba(255,255,255,.06),
+             0 0 40px rgba(56,189,248,.12)
+}
+h2{text-align:center;font-size:20px;margin:6px 0 10px}
+.group{margin-bottom:6px}
+label{font-size:12px;color:#9ca3af}
+input{
+  width:100%;padding:9px 10px;margin-top:4px;
+  font-size:14px;border-radius:10px;
+  border:1px solid rgba(255,255,255,.08);
+  background:rgba(0,0,0,.55);color:#fff
+}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+
+/* dropdown */
+.dropdown{position:relative;margin-top:4px}
+.dropdown-value{
+  padding:9px 10px;border-radius:10px;
+  background:rgba(0,0,0,.55);
+  border:1px solid rgba(255,255,255,.08);
+  cursor:pointer
+}
+.dropdown-value::after{content:"▾";float:right}
+.dropdown-menu{
+  position:absolute;top:110%;left:0;right:0;
+  background:#0f121a;border-radius:10px;
+  display:none;z-index:10
+}
+.dropdown.open .dropdown-menu{display:block}
+.dropdown-item{
+  padding:10px;display:flex;justify-content:space-between;
+  cursor:pointer
+}
+.dropdown-item.active::after{content:"✓"}
+
+/* result */
+.result{
+  margin-top:auto;padding:10px 12px;border-radius:14px;
+  background:rgba(0,0,0,.65);
+  border:1px solid rgba(96,165,250,.35);
+  font-size:13.5px;line-height:1.5
+}
+.result h4{margin:4px 0;font-size:13px;color:#7dd3fc}
+.block{
+  margin-top:4px;padding:6px 8px;border-radius:8px;
+  background:rgba(255,255,255,.04)
+}
+.footer{text-align:center;font-size:11px;margin-top:4px;color:#6b7280}
+</style>
+</head>
+
+<body>
+<div class="box">
+  <h2>海外FOB/毛利率计算器</h2>
+
+  <div class="grid">
+    <div class="group">
+      <label>成本类型</label>
+      <div class="dropdown" id="costTypeBox">
+        <div class="dropdown-value" id="costTypeValue">含税成本</div>
+        <div class="dropdown-menu">
+          <div class="dropdown-item active" data-value="tax">含税成本</div>
+          <div class="dropdown-item" data-value="notax">未税成本</div>
+        </div>
+      </div>
+    </div>
+    <div class="group">
+      <label>成本 RMB</label>
+      <input id="cost">
+    </div>
+  </div>
+
+  <div class="grid">
+    <div class="group"><label>税率 %</label><input id="taxRate"></div>
+    <div class="group"><label>汇率</label><input id="rate"></div>
+  </div>
+
+  <div class="grid">
+    <div class="group"><label>OCOGS %</label><input id="ocogs"></div>
+    <div class="group"><label>返点 %</label><input id="rebate"></div>
+  </div>
+
+  <div class="grid">
+    <div class="group"><label>固定扣点 %</label><input id="fixed"></div>
+    <div class="group"><label>目标毛利率 %</label><input id="margin"></div>
+  </div>
+
+  <div class="group">
+    <label>FOB USD（反算毛利）</label>
+    <input id="fob">
+  </div>
+
+  <div class="result" id="result">请输入数据开始计算</div>
+  <div class="footer">仅限张嘉琛使用</div>
+</div>
+
+<script>
+const STORE_KEY="FOB_MARGIN_CALC_V1";
+let costType="tax";
+const $=id=>document.getElementById(id);
+
+function save(){
+  localStorage.setItem(STORE_KEY,JSON.stringify({
+    costType,
+    cost:cost.value,taxRate:taxRate.value,rate:rate.value,
+    ocogs:ocogs.value,rebate:rebate.value,fixed:fixed.value,
+    margin:margin.value,fob:fob.value
+  }));
+}
+
+function load(){
+  const d=JSON.parse(localStorage.getItem(STORE_KEY)||"{}");
+  costType=d.costType||"tax";
+  cost.value=d.cost||"";taxRate.value=d.taxRate||"";
+  rate.value=d.rate||"";ocogs.value=d.ocogs||"";
+  rebate.value=d.rebate||"";fixed.value=d.fixed||"";
+  margin.value=d.margin||"";fob.value=d.fob||"";
+  costTypeValue.textContent=costType==="tax"?"含税成本":"未税成本";
+  document.querySelectorAll(".dropdown-item").forEach(i=>{
+    i.classList.toggle("active",i.dataset.value===costType)
+  });
+  calc();
+}
+
+function calc(){
+  save();
+  const c=+cost.value,t=+taxRate.value/100,r=+rate.value;
+  const o=+ocogs.value/100,rb=+rebate.value/100;
+  const fx=+fixed.value/100,mg=+margin.value/100,f=+fob.value;
+  if(!c||!r){result.textContent="请输入数据开始计算";return}
+  const untaxed=costType==="tax"?c/(1+t):c;
+  const costUSD=untaxed*(1+o)/r;
+  let html=`销售成本：<b>${costUSD.toFixed(4)} USD</b>`;
+  if(mg>0){
+    const fobT=costUSD*(1-fx)/((1-rb)*(1-mg-fx));
+    html+=`<div class="block"><h4>目标毛利率方案</h4>
+    目标毛利率：${(mg*100).toFixed(2)}%<br>
+    FOB：<b>${fobT.toFixed(2)} USD</b></div>`;
+  }
+  if(f>0){
+    const customer=f*(1-rb);
+    const real=1-(costUSD+(customer-costUSD)*fx)/customer;
+    html+=`<div class="block"><h4>FOB 反算毛利方案</h4>
+    FOB：<b>${f.toFixed(2
