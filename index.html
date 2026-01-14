@@ -171,11 +171,13 @@ input:focus {
 }
 
 .block-title {
-  font-size: 10px;
-  color: #555;
-  margin-bottom: 2px;
+  font-size: 11px;              /* 字号也可以稍微大一丢丢 */
+  color: var(--text-main);      /* 改成主文字颜色（浅灰白），或者直接写 #fff (纯白) */
+  margin-bottom: 4px;           /* 间距稍微拉开一点 */
   text-transform: uppercase;
   letter-spacing: 0.5px;
+  opacity: 1;                   /* 【关键】把透明度改成 1，或者直接删掉这一行 */
+  font-weight: 500;             /* 【可选】稍微加粗一点点，更清晰 */
 }
 
 .block-row {
